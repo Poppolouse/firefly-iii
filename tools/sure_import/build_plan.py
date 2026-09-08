@@ -22,6 +22,8 @@ ACCOUNT_TYPES = {
     "Vehicle": {"type": "asset", "account_role": "defaultAsset"},
     "OtherAsset": {"type": "asset", "account_role": "defaultAsset"},
     "CreditCard": {"type": "asset", "account_role": "ccAsset"},
+    "Loan": {"type": "liability", "liability_type": "loan", "liability_direction": "credit"},
+    "OtherLiability": {"type": "liability", "liability_type": "debt", "liability_direction": "credit"},
 }
 
 
@@ -68,18 +70,20 @@ def build_plan(records: list[dict]) -> dict:
         payload = {
             "name": account["name"],
             "type": mapping["type"],
-            "account_role": mapping["account_role"],
             "currency_code": value(account, "currency"),
         }
+        if mapping["type"] == "asset":
+            payload["account_role"] = mapping["account_role"]
+        else:
+            payload["liability_type"] = mapping["liability_type"]
+            payload["liability_direction"] = mapping["liability_direction"]
+            payload["notes"] = value(account, "notes")
         operations.append(api_operation("/api/v1/accounts", payload, account["id"]))
 
     for category in by_type.get("Category", []):
         operations.append(api_operation("/api/v1/categories", {"name": category["name"]}, category["id"]))
     for tag in by_type.get("Tag", []):
         operations.append(api_operation("/api/v1/tags", {"tag": tag["name"]}, tag["id"]))
-    for budget in by_type.get("Budget", []):
-        operations.append(api_operation("/api/v1/budgets", {"name": budget["name"]}, budget["id"]))
-
     for transfer in by_type.get("Transfer", []):
         outgoing = transactions.get(transfer.get("outflow_transaction_id"))
         incoming = transactions.get(transfer.get("inflow_transaction_id"))
@@ -136,7 +140,10 @@ def build_plan(records: list[dict]) -> dict:
         if transaction.get("split_lines"):
             review.append({"kind": "transaction", "source_id": transaction["id"], "reason": "Split lines require a grouped Firefly transaction review."})
 
-    for unsupported in ("Trade", "Holding", "Valuation", "RecurringTransaction", "Rule", "RejectedTransfer", "Balance"):
+    # Sure budgets are dated allocation records linked through BudgetCategory,
+    # not named budget definitions. Creating Firefly budgets from them would
+    # silently invent a budgeting structure, so retain them for review.
+    for unsupported in ("Trade", "Holding", "Valuation", "RecurringTransaction", "Rule", "RejectedTransfer", "Balance", "Budget", "BudgetCategory"):
         for item in by_type.get(unsupported, []):
             review.append({"kind": unsupported, "source_id": item["id"], "reason": "No automatic lossless Firefly mapping is implemented."})
 

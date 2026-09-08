@@ -25,13 +25,22 @@ RESOURCE_NAME_FIELDS = {
 }
 
 
-def load_plan(path: Path) -> dict:
+def load_plan(path: Path, allow_manual_review: bool = False) -> dict:
     plan = json.loads(path.read_text(encoding="utf-8"))
     if plan.get("format") != "sure-to-firefly-api-plan/v1":
         raise ValueError("Unsupported migration plan format")
-    if plan.get("manual_review"):
+    if plan.get("manual_review") and not allow_manual_review:
         raise ValueError("Plan has manual_review items; resolve or explicitly remove them before applying")
     return plan
+
+
+def token_from_file(path: Path) -> str:
+    value = path.read_text(encoding="utf-8").strip()
+    if value.startswith("FIREFLY_ACCESS_TOKEN="):
+        value = value.split("=", 1)[1].strip()
+    if not value:
+        raise ValueError("Token file is empty")
+    return value
 
 
 def request_json(base_url: str, token: str, method: str, endpoint: str, payload: dict | None = None) -> tuple[int, dict]:
@@ -97,12 +106,14 @@ def main() -> None:
     parser.add_argument("plan", type=Path)
     parser.add_argument("--url", default="http://localhost:8088")
     parser.add_argument("--apply", action="store_true", help="Permit writes to Firefly III.")
+    parser.add_argument("--allow-manual-review", action="store_true", help="Allow applying only the automatic operations while retaining review items.")
+    parser.add_argument("--token-file", type=Path, help="Ignored local file containing only FIREFLY_ACCESS_TOKEN=... or the token itself.")
     args = parser.parse_args()
-    plan = load_plan(args.plan)
+    plan = load_plan(args.plan, args.allow_manual_review)
     if not args.apply:
         print(json.dumps({"dry_run": True, "operations": len(plan["operations"]), "manual_review": len(plan["manual_review"])}))
         return
-    token = os.environ.get("FIREFLY_ACCESS_TOKEN")
+    token = token_from_file(args.token_file) if args.token_file else os.environ.get("FIREFLY_ACCESS_TOKEN")
     if not token:
         raise SystemExit("FIREFLY_ACCESS_TOKEN must be set only in your shell before --apply")
     print(json.dumps(apply(plan, args.url, token)))

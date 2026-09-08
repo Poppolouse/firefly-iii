@@ -24,6 +24,13 @@ class BuildPlanTest(unittest.TestCase):
             plan_path.write_text(json.dumps({"format": "sure-to-firefly-api-plan/v1", "operations": [], "manual_review": [{"reason": "review"}]}), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "manual_review"):
                 apply_plan.load_plan(plan_path)
+            self.assertEqual("sure-to-firefly-api-plan/v1", apply_plan.load_plan(plan_path, allow_manual_review=True)["format"])
+
+    def test_token_file_accepts_env_assignment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            token_path = pathlib.Path(temp_dir) / "token.env"
+            token_path.write_text("FIREFLY_ACCESS_TOKEN=token-value\n", encoding="utf-8")
+            self.assertEqual("token-value", apply_plan.token_from_file(token_path))
 
     def test_reads_ndjson_from_sure_zip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -48,6 +55,24 @@ class BuildPlanTest(unittest.TestCase):
         self.assertEqual("Checking", transaction["source_name"])
         self.assertEqual("Market", transaction["destination_name"])
         self.assertTrue(any(item["source_id"] == "trade1" for item in plan["manual_review"]))
+
+    def test_holds_unnamed_sure_budget_allocations_for_review(self):
+        plan = build_plan.build_plan([
+            {"type": "Budget", "data": {"id": "budget1", "start_date": "2026-01-01", "end_date": "2026-01-31", "budgeted_spending": "50"}},
+            {"type": "BudgetCategory", "data": {"id": "budget-category1", "budget_id": "budget1", "category_id": "category1"}},
+        ])
+        self.assertEqual(0, plan["summary"]["operation_count"])
+        self.assertEqual({"Budget", "BudgetCategory"}, {item["kind"] for item in plan["manual_review"]})
+
+    def test_maps_sure_liabilities_to_firefly_liabilities(self):
+        plan = build_plan.build_plan([
+            {"type": "Account", "data": {"id": "loan1", "name": "Loan", "accountable_type": "Loan", "currency": "EUR"}},
+            {"type": "Account", "data": {"id": "debt1", "name": "Debt", "accountable_type": "OtherLiability", "currency": "TRY"}},
+        ])
+        payloads = [operation["payload"] for operation in plan["operations"]]
+        self.assertEqual("loan", payloads[0]["liability_type"])
+        self.assertEqual("debt", payloads[1]["liability_type"])
+        self.assertFalse(plan["manual_review"])
 
 
 if __name__ == "__main__":
