@@ -74,6 +74,14 @@ class BuildPlanTest(unittest.TestCase):
         self.assertEqual("debt", payloads[1]["liability_type"])
         self.assertFalse(plan["manual_review"])
 
+    def test_maps_sure_credit_cards_to_a_supported_asset_role(self):
+        plan = build_plan.build_plan([
+            {"type": "Account", "data": {"id": "card1", "name": "Card", "accountable_type": "CreditCard", "currency": "EUR"}},
+        ])
+        payload = plan["operations"][0]["payload"]
+        self.assertEqual("asset", payload["type"])
+        self.assertEqual("defaultAsset", payload["account_role"])
+
 
 if __name__ == "__main__":
     unittest.main()

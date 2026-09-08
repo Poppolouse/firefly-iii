@@ -21,7 +21,10 @@ ACCOUNT_TYPES = {
     "Property": {"type": "asset", "account_role": "defaultAsset"},
     "Vehicle": {"type": "asset", "account_role": "defaultAsset"},
     "OtherAsset": {"type": "asset", "account_role": "defaultAsset"},
-    "CreditCard": {"type": "asset", "account_role": "ccAsset"},
+    # Firefly's API only accepts defaultAsset or cashWallet for asset accounts.
+    # Keep credit cards as asset accounts so their imported transactions remain
+    # usable, and preserve the source account name instead of inventing a type.
+    "CreditCard": {"type": "asset", "account_role": "defaultAsset"},
     "Loan": {"type": "liability", "liability_type": "loan", "liability_direction": "credit"},
     "OtherLiability": {"type": "liability", "liability_type": "debt", "liability_direction": "credit"},
 }

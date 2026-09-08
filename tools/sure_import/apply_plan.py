@@ -91,10 +91,12 @@ def apply(plan: dict, base_url: str, token: str) -> dict:
             if name in known_names[endpoint]:
                 summary["skipped_existing"] += 1
                 continue
-        status, _ = request_json(base_url, token, operation["method"], endpoint, payload)
+        status, response = request_json(base_url, token, operation["method"], endpoint, payload)
         if status not in (200, 201):
             summary["failed"] += 1
-            raise RuntimeError(f"Migration stopped at {endpoint} with HTTP {status}; no later operations were attempted")
+            errors = response.get("errors", {}) if isinstance(response, dict) else {}
+            fields = ", ".join(sorted(errors)) if isinstance(errors, dict) else "unknown"
+            raise RuntimeError(f"Migration stopped at {endpoint} with HTTP {status}; error fields: {fields}; no later operations were attempted")
         if endpoint in RESOURCE_NAME_FIELDS:
             known_names[endpoint].add(payload[RESOURCE_NAME_FIELDS[endpoint]])
         summary["created"] += 1
