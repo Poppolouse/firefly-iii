@@ -80,12 +80,34 @@ def existing_names(base_url: str, token: str, endpoint: str, field: str) -> set[
     return names
 
 
+def existing_transaction_external_ids(base_url: str, token: str) -> set[str]:
+    external_ids: set[str] = set()
+    next_endpoint: str | None = "/api/v1/transactions?limit=100"
+    while next_endpoint:
+        status, response = request_json(base_url, token, "GET", next_endpoint)
+        if status != 200:
+            raise RuntimeError(f"Could not list existing transactions (HTTP {status})")
+        for item in response.get("data", []):
+            for transaction in item.get("attributes", {}).get("transactions", []):
+                external_id = transaction.get("external_id")
+                if external_id:
+                    external_ids.add(external_id)
+        next_endpoint = response.get("links", {}).get("next")
+    return external_ids
+
+
 def apply(plan: dict, base_url: str, token: str) -> dict:
     known_names = {endpoint: existing_names(base_url, token, endpoint, field) for endpoint, field in RESOURCE_NAME_FIELDS.items()}
+    known_transaction_ids = existing_transaction_external_ids(base_url, token)
     summary = {"created": 0, "skipped_existing": 0, "failed": 0}
     for operation in plan["operations"]:
         endpoint = operation["endpoint"]
         payload = operation["payload"]
+        if endpoint == "/api/v1/transactions":
+            external_id = payload["transactions"][0].get("external_id")
+            if external_id and external_id in known_transaction_ids:
+                summary["skipped_existing"] += 1
+                continue
         if endpoint in RESOURCE_NAME_FIELDS:
             name = payload[RESOURCE_NAME_FIELDS[endpoint]]
             if name in known_names[endpoint]:
@@ -99,6 +121,10 @@ def apply(plan: dict, base_url: str, token: str) -> dict:
             raise RuntimeError(f"Migration stopped at {endpoint} with HTTP {status}; error fields: {fields}; no later operations were attempted")
         if endpoint in RESOURCE_NAME_FIELDS:
             known_names[endpoint].add(payload[RESOURCE_NAME_FIELDS[endpoint]])
+        if endpoint == "/api/v1/transactions":
+            external_id = payload["transactions"][0].get("external_id")
+            if external_id:
+                known_transaction_ids.add(external_id)
         summary["created"] += 1
     return summary
 
