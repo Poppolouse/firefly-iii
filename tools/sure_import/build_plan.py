@@ -42,6 +42,11 @@ def value(data: dict, key: str, default=None):
     return result if result not in (None, "") else default
 
 
+def nonblank_value(data: dict, key: str, default: str) -> str:
+    result = value(data, key, "")
+    return result.strip() if isinstance(result, str) and result.strip() else default
+
+
 def api_operation(endpoint: str, payload: dict, source_id: str) -> dict:
     return {"method": "POST", "endpoint": endpoint, "source_id": source_id, "payload": payload}
 
@@ -108,7 +113,7 @@ def build_plan(records: list[dict]) -> dict:
             "apply_rules": False,
             "transactions": [{
                 "type": "transfer", "date": outgoing["date"], "amount": f"{amount:.2f}",
-                "currency_code": value(outgoing, "currency"), "description": value(outgoing, "name", "Sure transfer"),
+                "currency_code": value(outgoing, "currency"), "description": nonblank_value(outgoing, "name", "Sure transfer"),
                 "notes": value(outgoing, "notes"), "source_name": source["name"], "destination_name": destination["name"],
                 "external_id": transfer["id"],
             }],
@@ -126,7 +131,7 @@ def build_plan(records: list[dict]) -> dict:
         payload = {
             "type": "withdrawal" if amount < 0 else "deposit", "date": transaction["date"],
             "amount": f"{abs(amount):.2f}", "currency_code": value(transaction, "currency"),
-            "description": value(transaction, "name", "Sure transaction"), "notes": value(transaction, "notes"),
+            "description": nonblank_value(transaction, "name", "Sure transaction"), "notes": value(transaction, "notes"),
             "category_name": categories.get(transaction.get("category_id")),
             "tags": [tags[tag_id] for tag_id in transaction.get("tag_ids", []) if tag_id in tags],
             "external_id": transaction["id"],

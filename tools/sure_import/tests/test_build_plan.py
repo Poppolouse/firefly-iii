@@ -82,6 +82,14 @@ class BuildPlanTest(unittest.TestCase):
         self.assertEqual("asset", payload["type"])
         self.assertEqual("defaultAsset", payload["account_role"])
 
+    def test_uses_a_default_for_a_blank_transaction_description(self):
+        plan = build_plan.build_plan([
+            {"type": "Account", "data": {"id": "a1", "name": "Checking", "accountable_type": "Depository", "currency": "EUR"}},
+            {"type": "Transaction", "data": {"id": "t1", "account_id": "a1", "amount": "-1", "currency": "EUR", "date": "2026-01-01", "name": "   "}},
+        ])
+        transaction = plan["operations"][-1]["payload"]["transactions"][0]
+        self.assertEqual("Sure transaction", transaction["description"])
+
 
 if __name__ == "__main__":
     unittest.main()
