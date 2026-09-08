@@ -1,0 +1,10 @@
+# Never send local credentials, runtime state or repository metadata to Docker.
+.git
+.env
+.env.*
+!/.env.example
+infra/local/*.env
+infra/local/data
+node_modules
+storage/logs
+__pycache__

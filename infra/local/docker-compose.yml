@@ -1,0 +1,47 @@
+name: firefly-sure-migration
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: infra/local/Dockerfile
+    image: firefly-iii-sure-migration:local
+    hostname: app
+    ports:
+      - "8088:8080"
+    env_file:
+      - ./firefly.env
+    volumes:
+      - firefly_upload:/var/www/html/storage/upload
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mariadb:lts
+    hostname: db
+    env_file:
+      - ./db.env
+    volumes:
+      - firefly_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  importer:
+    image: fireflyiii/data-importer:version-1
+    hostname: importer
+    ports:
+      - "8089:8080"
+    env_file:
+      - ./importer.env
+    volumes:
+      - ./data:/import
+    depends_on:
+      - app
+
+volumes:
+  firefly_upload:
+  firefly_db:
