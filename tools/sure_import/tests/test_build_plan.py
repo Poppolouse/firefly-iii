@@ -11,8 +11,20 @@ SPEC = importlib.util.spec_from_file_location("build_plan", MODULE)
 build_plan = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(build_plan)
 
+APPLY_MODULE = pathlib.Path(__file__).parents[1] / "apply_plan.py"
+APPLY_SPEC = importlib.util.spec_from_file_location("apply_plan", APPLY_MODULE)
+apply_plan = importlib.util.module_from_spec(APPLY_SPEC)
+APPLY_SPEC.loader.exec_module(apply_plan)
+
 
 class BuildPlanTest(unittest.TestCase):
+    def test_apply_loader_rejects_unreviewed_plan(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plan_path = pathlib.Path(temp_dir) / "plan.json"
+            plan_path.write_text(json.dumps({"format": "sure-to-firefly-api-plan/v1", "operations": [], "manual_review": [{"reason": "review"}]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "manual_review"):
+                apply_plan.load_plan(plan_path)
+
     def test_reads_ndjson_from_sure_zip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             archive_path = pathlib.Path(temp_dir) / "sure-export.zip"

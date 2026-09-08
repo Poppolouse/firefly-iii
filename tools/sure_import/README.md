@@ -17,3 +17,15 @@ transfers, non-standard liabilities and split transactions for review.
 The target Firefly API must only be populated after a backup and an approved
 test import. The operations use Firefly `external_id` plus duplicate checking
 to support a controlled re-run; that is not a substitute for reconciliation.
+
+After resolving every `manual_review` entry and creating a disposable Firefly
+test user plus a personal access token, the plan can be checked without writes:
+
+```powershell
+python tools/sure_import/apply_plan.py migration-plan.json
+```
+
+Only an explicit `--apply` sends requests to Firefly. Keep the token out of
+files and command history by setting `FIREFLY_ACCESS_TOKEN` in the shell for
+that one command. The applier stops at the first failed write and only skips
+pre-existing accounts, categories, tags and budgets by name.
